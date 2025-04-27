@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 function createWindow() {
   const win = new BrowserWindow({
     frame: true,
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -17,6 +18,7 @@ function createWindow() {
   const startUrl = process.env.ELECTRON_START_URL || `file://${path.resolve(__dirname, '..', 'dist', 'index.html')}`;
   win.loadURL(startUrl)
   win.maximize();
+  Menu.setApplicationMenu(null);
 }
 
 app.whenReady().then(createWindow);
