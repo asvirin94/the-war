@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { Button } from 'src/ui/components/button.tsx'
+
 import { AREAS } from './data.ts';
 
 type Offset = {
@@ -295,7 +298,7 @@ const HexMap = () => {
         >
             {activeHex && (
                 <div className='absolute bottom-1 left-1 w-60 h-120 flex flex-col p-5 bg-white'>
-                    <button className='bg-red-500 cursor-pointer' onClick={() => setActiveHex(null)}>закрыть</button>
+                    <Button className='bg-red-500 cursor-pointer' onClick={() => setActiveHex(null)}>закрыть</Button>
                     <p>{`${activeHex.row}/${activeHex.col}`}</p>
                 </div>
             )}
