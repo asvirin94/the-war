@@ -1,25 +1,53 @@
 import { useState } from "react";
+import { useNavigate } from 'react-router-dom'
 
-import { createLobby } from 'src/lib/utils.ts'
+import { getPlayer} from 'src/lib/utils'
+import { LobbyType, PlayerType } from 'src/lib/types'
+import { API_URL } from 'src/lib/consts'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "src/ui/components/dialog";
 import { Label } from 'src/ui/components/label';
 import { Input } from 'src/ui/components/input';
-import { Button } from 'src/ui/components/button.tsx';
+import { Button } from 'src/ui/components/button';
 
-type CreateLobbyModalType = {
+type ModalCreateLobbyType = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }
 
-export function ModalCreateLobby({ open, onOpenChange }: CreateLobbyModalType) {
+export default function ModalCreateLobby({ open, onOpenChange }: ModalCreateLobbyType) {
     const [lobbyName, setLobbyName] = useState("");
     const [password, setPassword] = useState("");
 
-    const handleSubmit = () => {
-        if (!lobbyName.trim()) return;
-        createLobby(lobbyName, password);
-        onOpenChange(false);
+    const navigate = useNavigate();
+
+    const user: PlayerType | null = getPlayer();
+
+    const createLobby = async (lobbyName: string, password: string): Promise<LobbyType> => {
+        const response = await fetch(`${API_URL}/lobby/create`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: lobbyName,
+                password: password,
+                player_id: user?.id,
+            }),
+        });
+
+        return await response.json();
+    };
+
+    const handleSubmit = async () => {
+        if(user) {
+            if (!lobbyName.trim()) return;
+            const lobby = await createLobby(lobbyName, password);
+            if (lobby.id) {
+                onOpenChange(false);
+                navigate(`/lobby/${lobby.id}`, { state: { isOwner: true } });
+            }
+        }
     };
 
     return (
@@ -45,8 +73,6 @@ export function ModalCreateLobby({ open, onOpenChange }: CreateLobbyModalType) {
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            minLength={2}  // Для ограничения минимальной длины
-                            maxLength={10} // Для ограничения максимальной длины
                             placeholder="Введите пароль"
                         />
                     </div>

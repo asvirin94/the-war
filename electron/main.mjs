@@ -7,18 +7,17 @@ const __dirname = path.dirname(__filename);
 
 function createWindow() {
   const win = new BrowserWindow({
-    frame: true,
-    autoHideMenuBar: true,
+    fullscreen: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
     },
   });
 
-  const startUrl = process.env.ELECTRON_START_URL || `file://${path.resolve(__dirname, '..', 'dist', 'index.html')}`;
-  win.loadURL(startUrl)
+  const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, '..', 'dist', 'index.html')}`;
+
+  win.loadURL(startUrl);
   win.maximize();
-  Menu.setApplicationMenu(null);
 }
 
 app.whenReady().then(createWindow);

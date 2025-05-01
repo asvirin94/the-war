@@ -10,8 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "set ELECTRON_START_URL=http://localhost:5173 && electron .",
-    "electron-build": "npm run build && electron .",
-    "dist": "npm run build && electron-builder"
+    "electron-build": "set NODE_ENV=production && npm run build && electron .",
+    "dist": "set NODE_ENV=production && npm run build && electron-builder"
   },
   "build": {
     "appId": "com.example.myapp",
@@ -31,13 +31,18 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.11",
     "@radix-ui/react-label": "^2.1.4",
+    "@radix-ui/react-menubar": "^1.1.12",
+    "@radix-ui/react-navigation-menu": "^1.2.10",
     "@radix-ui/react-slot": "^1.2.0",
+    "@reduxjs/toolkit": "^2.7.0",
     "@tailwindcss/vite": "^4.1.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.503.0",
+    "nanoid": "^5.1.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-redux": "^9.2.0",
     "react-router-dom": "^7.5.2",
     "tailwind-merge": "^3.2.0"
   },

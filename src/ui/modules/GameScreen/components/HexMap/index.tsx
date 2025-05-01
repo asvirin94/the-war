@@ -1,8 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// import { useParams } from 'react-router-dom'
+import { nanoid } from 'nanoid';
+
+import { addFactory, addUnit, changeUnit } from 'src/store/game-process/game-process.slice'
+import {
+    getFactories,
+    getShouldAddFactory,
+    getShouldAddUnit,
+    getUnits
+} from 'src/store/game-process/game-process.selectors'
+
+import { getPlayer } from 'src/lib/utils.ts'
+import { useAppDispatch, useAppSelector } from 'src/lib/hooks'
 
 import { Button } from 'src/ui/components/button.tsx'
 
-import { AREAS } from './data.ts';
+import UnitTank from 'src/ui/modules/GameScreen/components/UnitTank'
+import Factory from 'src/ui/modules/GameScreen/components/Factory'
+
+import { AREAS } from './data';
 
 type Offset = {
     x: number;
@@ -23,7 +39,7 @@ type HexMetrics = {
 };
 
 const HEX_SIZE = 30;
-const ROWS = 30;
+const ROWS = 40;
 const COLS = 50;
 const SCALES = [1, 1.5, 2];
 
@@ -36,6 +52,14 @@ const generateHexMetrics = (scale: number): HexMetrics => ({
 });
 
 const HexMap = () => {
+    const user = getPlayer();
+    const dispatch = useAppDispatch();
+
+    const shouldAddFactory = useAppSelector(getShouldAddFactory)
+    const myFactories = useAppSelector(getFactories)
+    const shouldAddUnit = useAppSelector(getShouldAddUnit)
+    const myUnits = useAppSelector(getUnits)
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const rafRef = useRef<number>(0);
@@ -44,8 +68,13 @@ const HexMap = () => {
     const [scaleIndex, setScaleIndex] = useState<number>(0);
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const [dragStart, setDragStart] = useState<Offset | null>(null);
-    // const [hoveredHex, setHoveredHex] = useState<HexCoords | null>(null);
+
+    const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
+    const [activeFactoryId, setActiveFactoryId] = useState<string | null>(null);
+
     const [activeHex, setActiveHex] = useState<HexCoords | null>(null);
+
+    // const {lobbyId} = useParams<{ lobbyId: string }>();
 
     const metrics: HexMetrics = useMemo(() => generateHexMetrics(SCALES[scaleIndex]), [scaleIndex]);
 
@@ -124,32 +153,6 @@ const HexMap = () => {
         return canvas;
     }, [areaColorMap]);
 
-    const draw = useCallback(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        const backgroundCanvas = maps.get(SCALES[scaleIndex]);
-        if (!canvas || !ctx || !backgroundCanvas) return;
-
-        canvas.width = backgroundCanvas.width;
-        canvas.height = backgroundCanvas.height;
-
-        ctx.drawImage(backgroundCanvas, offset.x, offset.y);
-
-        if (activeHex) {
-            const {row, col} = activeHex;
-            const {horizDist, vertDist, hexSize, hexWidth} = metrics;
-            const marginX = hexWidth / 2;
-            const marginY = hexSize;
-            const centerX = marginX + col * horizDist + (row % 2 ? horizDist / 2 : 0);
-            const centerY = marginY + row * vertDist;
-            const x = centerX + offset.x;
-            const y = centerY + offset.y;
-            const areaCode = row.toString() + '/' + col.toString();
-            const color = areaColorMap.get(areaCode);
-            drawHex(ctx, x, y, hexSize, true, color);
-        }
-    }, [metrics, offset, activeHex, maps, scaleIndex]);
-
     const getHexAt = (mouseX: number, mouseY: number): HexCoords | null => {
         const {hexSize, horizDist, vertDist, hexWidth} = metrics;
         const marginX = hexWidth / 2;
@@ -180,6 +183,170 @@ const HexMap = () => {
         }
         return null;
     };
+
+    const handleUnitClick = (id: string) => {
+        const unit = myUnits?.find(u => u.id === id);
+        if (!unit) return;
+
+        setActiveUnitId(id);
+        setActiveHex(null);
+        setActiveFactoryId(null)
+    };
+
+    const handleUnitRightClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+
+        if (!activeUnitId) return;
+
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const hex = getHexAt(x, y);
+
+        if (hex && myUnits) {
+            const unit = myUnits.find((u) => u.id === activeUnitId)
+            if(unit) {
+                dispatch(changeUnit({...unit, x: hex.row, y: hex.col}))
+            }
+        }
+    };
+
+    const handleFactoryClick = (id: string) => {
+        const factory = myFactories?.find(f => f.id === id);
+        if (!factory) return;
+
+        setActiveFactoryId(id);
+        setActiveUnitId(null);
+        setActiveHex(null);
+    }
+
+    const handleHexClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (isDragging) return;
+
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const hex = getHexAt(x, y);
+
+        if(hex) {
+            if(user) {
+                if(shouldAddFactory) {
+                    dispatch(addFactory({
+                        id: nanoid(),
+                        ownerId: user.id,
+                        x: hex?.row,
+                        y: hex?.col,
+                    }))
+
+                    return
+                }
+
+                if(shouldAddUnit) {
+                    dispatch(addUnit({
+                        id: nanoid(),
+                        ownerId: user.id,
+                        x: hex.row,
+                        y: hex.col,
+                    }))
+
+                    return
+                }
+            }
+
+            setActiveHex(hex);
+            setActiveUnitId(null);
+            setActiveFactoryId(null)
+        }
+    }
+
+    const renderUnits = useCallback(() => {
+        const {horizDist, vertDist, hexSize, hexWidth} = metrics;
+        if (!myUnits) return null;
+
+        return myUnits.map((unit) => {
+
+            const marginX = hexWidth / 2;
+            const marginY = hexSize;
+
+            const centerX = marginX + unit.y * horizDist + (unit.x % 2 ? horizDist / 2 : 0);
+            const centerY = marginY + unit.x * vertDist;
+
+            const screenX = centerX + offset.x;
+            const screenY = centerY + offset.y;
+
+            return (
+                <UnitTank
+                    isActive={activeUnitId === unit.id}
+                    key={unit.id}
+                    scale={0.8 * SCALES[scaleIndex]}
+                    x={screenX}
+                    y={screenY}
+                    size={40}
+                    onClick={() => handleUnitClick(unit.id)}
+                />
+            );
+        });
+    }, [activeUnitId, offset, metrics, myUnits])
+
+    const renderFactories = useCallback(() => {
+        const {horizDist, vertDist, hexSize, hexWidth} = metrics;
+        if (!myFactories) return null;
+
+        return myFactories.map((factory) => {
+
+            const marginX = hexWidth / 2;
+            const marginY = hexSize;
+
+            const centerX = marginX + factory.y * horizDist + (factory.x % 2 ? horizDist / 2 : 0);
+            const centerY = marginY + factory.x * vertDist;
+
+            const screenX = centerX + offset.x;
+            const screenY = centerY + offset.y;
+
+            return (
+                <Factory
+                    isActive={activeFactoryId === factory.id}
+                    key={factory.id}
+                    scale={0.8 * SCALES[scaleIndex]}
+                    x={screenX}
+                    y={screenY}
+                    size={40}
+                    onClick={() => handleFactoryClick(factory.id)}
+                />
+            );
+        });
+    }, [activeFactoryId, offset, metrics, myFactories])
+
+    const draw = useCallback(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        const backgroundCanvas = maps.get(SCALES[scaleIndex]);
+        if (!canvas || !ctx || !backgroundCanvas) return;
+
+        canvas.width = backgroundCanvas.width;
+        canvas.height = backgroundCanvas.height;
+
+        ctx.drawImage(backgroundCanvas, offset.x, offset.y);
+
+        if (activeHex) {
+            const {row, col} = activeHex;
+            const {horizDist, vertDist, hexSize, hexWidth} = metrics;
+            const marginX = hexWidth / 2;
+            const marginY = hexSize;
+            const centerX = marginX + col * horizDist + (row % 2 ? horizDist / 2 : 0);
+            const centerY = marginY + row * vertDist;
+            const x = centerX + offset.x;
+            const y = centerY + offset.y;
+            const areaCode = row.toString() + '/' + col.toString();
+            const color = areaColorMap.get(areaCode);
+            drawHex(ctx, x, y, hexSize, true, color);
+        }
+    }, [metrics, offset, activeHex, maps, scaleIndex]);
 
     const clampOffset = (x: number, y: number) => {
         if (!containerRef.current) return {x, y};
@@ -232,22 +399,9 @@ const HexMap = () => {
         }
     };
 
-    const handleMouseClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (isDragging) return;
-
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        setActiveHex(getHexAt(x, y))
-    }
-
     const handleMouseUp = () => setDragStart(null);
 
     const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-        e.preventDefault();
-
         if (!containerRef.current || !canvasRef.current) return;
 
         const rect = canvasRef.current.getBoundingClientRect();
@@ -294,7 +448,7 @@ const HexMap = () => {
     return (
         <div
             ref={containerRef}
-            className="relative max-w-full max-h-full overflow-hidden border border-1 border-[#444] bg-[#1e1e1e] active:cursor-grabbing touch-none"
+            className="relative max-w-full max-h-full overflow-hidden border border-2 border-[#000000] bg-[#656464] active:cursor-grabbing touch-none"
         >
             {activeHex && (
                 <div className='absolute bottom-1 left-1 w-60 h-120 flex flex-col p-5 bg-white'>
@@ -306,11 +460,14 @@ const HexMap = () => {
                 ref={canvasRef}
                 className="block"
                 onMouseDown={handleMouseDown}
-                onClick={handleMouseClick}
+                onClick={handleHexClick}
+                onContextMenu={handleUnitRightClick}
                 onMouseUp={handleMouseUp}
                 onMouseMove={handleMouseMove}
                 onWheel={handleWheel}
             />
+            {myUnits?.length && myUnits.length > 0 && renderUnits()}
+            {myFactories?.length && myFactories.length > 0 && renderFactories()}
         </div>
     );
 };

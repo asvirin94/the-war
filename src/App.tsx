@@ -1,19 +1,17 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { HashRouter as Router, Route, Routes } from 'react-router-dom';
 
 import MainMenu from 'src/ui/modules/MainMenu'
 import GameScreen from 'src/ui/modules/GameScreen'
+import LobbyScreen from 'src/ui/modules/LobbyScreen'
 
-function App() {
+export default function App() {
     return (
-        <>
-            <BrowserRouter>
-                <Routes>
-                    <Route index element={<MainMenu/>}/>
-                    <Route path='/game' element={<GameScreen/>}/>
-                </Routes>
-            </BrowserRouter>
-        </>
+        <Router>
+            <Routes>
+                <Route index element={<MainMenu/>}/>
+                <Route path='/lobby/:lobbyId' element={<LobbyScreen />} />
+                <Route path='/game/:lobbyId' element={<GameScreen/>}/>
+            </Routes>
+        </Router>
     )
 }
-
-export default App

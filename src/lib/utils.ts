@@ -1,42 +1,26 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+import { PlayerType } from 'src/lib/types.ts'
+
+const LOCAL_STORAGE_KEY = 'player';
+
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+    return twMerge(clsx(inputs))
 }
 
-export const createLobby = async (lobbyName: string, password: string) => {
-  try {
-    const response = await fetch('http://109.73.199.202/lobby/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: lobbyName,
-        password: password,
-      }),
-    });
+export const savePlayer = (player: PlayerType) => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(player));
+}
 
-    if (!response.ok) {
-      throw new Error('Ошибка создания лобби');
-    }
+export const getPlayer = (): PlayerType | null => {
+    const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!data) return null;
 
-    const data = await response.json();
-    console.log('Лобби создано!', data);
-  } catch (error) {
-    console.error('Ошибка при создании лобби:', error);
-  }
-};
+    return JSON.parse(data) as PlayerType;
+}
 
-export const getLobbies = async () => {
-  const response = await fetch('http://109.73.199.202/lobby/list', {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
-
-  return await response.json();
+export const clearPlayer= () => {
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
 }
 
