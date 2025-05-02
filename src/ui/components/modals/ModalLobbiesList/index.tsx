@@ -26,7 +26,7 @@ export default function ModalLobbiesList({open, onOpenChange}: ModalGetLobbiesPr
     const user: PlayerType | null = getPlayer();
 
     const fetchLobbies = async (): Promise<LobbyType[]> => {
-        const response = await fetch(`${API_URL}/lobby/list`, {
+        const response = await fetch(`http://${API_URL}/lobby/list`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -45,7 +45,7 @@ export default function ModalLobbiesList({open, onOpenChange}: ModalGetLobbiesPr
 
     const handleJoinLobby = async (lobbyId: string, password: string) => {
         if (user) {
-            const response = await fetch(`${API_URL}/lobby/join?lobby_id=${lobbyId}&user_id=${user.id}`, {
+            const response = await fetch(`http://${API_URL}/lobby/join?lobby_id=${lobbyId}&user_id=${user.id}`, {
                 method: 'POST',
                 body: JSON.stringify({password}),
                 headers: {'Content-Type': 'application/json'},

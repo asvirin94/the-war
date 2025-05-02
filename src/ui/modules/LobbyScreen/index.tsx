@@ -22,7 +22,7 @@ export default function LobbyScreen() {
     const takenColors = players.map(p => p.color).filter(Boolean);
 
     const fetchLobby = async () => {
-        const res = await fetch(`${API_URL}/lobby?lobby_id=${lobbyId}`, {
+        const res = await fetch(`http://${API_URL}/lobby?lobby_id=${lobbyId}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -38,7 +38,7 @@ export default function LobbyScreen() {
     const handleSelectColor = async (color: string) => {
         if (!user) return;
 
-        await fetch(`${API_URL}/lobby/set_color?lobby_id=${lobbyId}&player_id=${user.id}`, {
+        await fetch(`http://${API_URL}/lobby/set_color?lobby_id=${lobbyId}&player_id=${user.id}`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({color}),
@@ -51,7 +51,7 @@ export default function LobbyScreen() {
     const handleLeaveLobby = async () => {
         if (user) {
             savePlayer({...user, color: '',});
-            await fetch(`${API_URL}/lobby/leave?lobby_id=${lobbyId}&player_id=${user.id}`, {method: "POST"});
+            await fetch(`http://${API_URL}/lobby/leave?lobby_id=${lobbyId}&player_id=${user.id}`, {method: "POST"});
             navigate("/");
         }
     };
@@ -59,7 +59,7 @@ export default function LobbyScreen() {
     const handleStartGame = async () => {
         if (!lobbyId) return;
 
-        await fetch(`${API_URL}/lobby/start?lobby_id=${lobbyId}`, { method: "POST" });
+        await fetch(`http://${API_URL}/lobby/start?lobby_id=${lobbyId}`, { method: "POST" });
 
         navigate(`/game/${lobbyId}`);
     };

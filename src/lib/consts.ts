@@ -1,4 +1,4 @@
-export const API_URL = 'http://109.73.199.202'
+export const API_URL = '109.73.199.202'
 
 export const CONFIG = {
     HEX: {

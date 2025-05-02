@@ -31,7 +31,7 @@ export default function MainMenu() {
 
     useEffect(() => {
         setPlayer(getPlayer());
-        fetch(`${API_URL}/players`, {method: "GET"});
+        fetch(`http://${API_URL}/players`, {method: "GET"});
         // getPlayers()
     }, []);
 
