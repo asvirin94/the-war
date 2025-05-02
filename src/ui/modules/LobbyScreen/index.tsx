@@ -21,6 +21,20 @@ export default function LobbyScreen() {
     const user: PlayerType | null = getPlayer();
     const takenColors = players.map(p => p.color).filter(Boolean);
 
+    const fetchLobby = async () => {
+        const res = await fetch(`${API_URL}/lobby?lobby_id=${lobbyId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const data = await res.json();
+        setPlayers(data.players);
+        setIsGameStarted(data.isStarted);
+        setIsLoading(false);
+    };
+
     const handleSelectColor = async (color: string) => {
         if (!user) return;
 
@@ -31,6 +45,7 @@ export default function LobbyScreen() {
         });
 
         savePlayer({...user, color,});
+        fetchLobby();
     };
 
     const handleLeaveLobby = async () => {
@@ -50,22 +65,9 @@ export default function LobbyScreen() {
     };
 
     useEffect(() => {
-        if (!lobbyId) return;
-
-        const ws = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/ws/lobby?lobby_id=${lobbyId}`);
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            setPlayers(data.players);
-            setIsGameStarted(data.isStarted);
-        };
-
-        setIsLoading(false)
-
-        return () => {
-            ws.close();
-        };
-    }, [lobbyId]);
+        const interval = setInterval(fetchLobby, 2000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         if (isGameStarted) {
