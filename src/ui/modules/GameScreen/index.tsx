@@ -1,4 +1,8 @@
-import { shouldAddFactoryChange, shouldAddUnitChange } from 'src/store/game-process/game-process.slice'
+import {
+    shouldAddFactoryChange,
+    shouldAddTownChange,
+    // shouldAddUnitChange
+} from 'src/store/game-process/game-process.slice'
 
 import { useAppDispatch } from 'src/lib/hooks.ts'
 
@@ -15,17 +19,30 @@ import {
 } from 'src/ui/components/menubar'
 
 import HexMap from 'src/ui/modules/GameScreen/components/HexMap'
+import { getPlayer } from 'src/lib/utils.ts'
+import { PlayerType } from 'src/lib/types.ts'
 
 export default function GameScreen() {
     const dispatch = useAppDispatch()
+    const player = getPlayer() as PlayerType
+    const color = player.color
 
     return (
-        <div className='w-full h-full'>
+        <div className='w-full h-full px-2'>
             <div className='h-20 flex items-center px-5 bg-[#cdcac3]'>
                 <Menubar>
                     <MenubarMenu>
-                        <MenubarTrigger>Строительство</MenubarTrigger>
+                        <MenubarTrigger className={`data-[state=open]:bg-${color}-500`}>Строительство</MenubarTrigger>
                         <MenubarContent>
+                            <MenubarSub>
+                                <MenubarSubTrigger>Поселение</MenubarSubTrigger>
+                                <MenubarSubContent>
+                                    <MenubarItem onClick={() => dispatch(shouldAddTownChange())}>Город</MenubarItem>
+                                    <MenubarSeparator />
+                                    <MenubarItem>Деревня</MenubarItem>
+                                </MenubarSubContent>
+                            </MenubarSub>
+                            <MenubarSeparator />
                             <MenubarItem onClick={() => dispatch(shouldAddFactoryChange())}>
                                 Фабрика
                             </MenubarItem>
@@ -44,9 +61,10 @@ export default function GameScreen() {
                     </MenubarMenu>
                     <div className='h-full w-[1px] bg-[#cdcac3]' />
                     <MenubarMenu>
-                        <MenubarTrigger>Создать отряд</MenubarTrigger>
+                        <MenubarTrigger className={`data-[state=open]:bg-${color}-500`}>Создать отряд</MenubarTrigger>
                         <MenubarContent>
-                            <MenubarItem onClick={() => dispatch(shouldAddUnitChange())}>
+                            {/*<MenubarItem onClick={() => dispatch(shouldAddUnitChange())}>*/}
+                            <MenubarItem>
                                 Танковый полк
                             </MenubarItem>
                             <MenubarSeparator/>

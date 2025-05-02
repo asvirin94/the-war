@@ -18,6 +18,31 @@ export type LobbyType = {
     players: PlayerType[];
 }
 
+export type OffsetType = {
+    x: number;
+    y: number;
+};
+
+export type HexCoordsType = {
+    row: number;
+    col: number;
+};
+
+export type HexMetricsType = {
+    hexSize: number;
+    hexWidth: number;
+    hexHeight: number;
+    vertDist: number;
+    horizDist: number;
+};
+
+export type TownType = {
+    id: string;
+    ownerId: string;
+    x: number;
+    y: number;
+}
+
 export type UnitType = {
     id: string;
     ownerId: string;

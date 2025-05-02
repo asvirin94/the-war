@@ -1,8 +1,10 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
-import { FactoryType, UnitType } from 'src/lib/types'
+import { FactoryType, TownType, UnitType } from 'src/lib/types'
 
 type InitialStateType = {
+    shouldAddTown: boolean;
+    towns: TownType[] | null;
     shouldAddFactory: boolean;
     factories: FactoryType[] | null;
     shouldAddUnit: boolean;
@@ -10,6 +12,8 @@ type InitialStateType = {
 }
 
 export const gameInitialState: InitialStateType = {
+    shouldAddTown: false,
+    towns: null,
     shouldAddFactory: false,
     factories: null,
     shouldAddUnit: false,
@@ -20,6 +24,18 @@ export const gameSlice = createSlice({
     name: 'GAME',
     initialState: gameInitialState,
     reducers: {
+        shouldAddTownChange: (state) => {
+            state.shouldAddTown = !state.shouldAddTown
+        },
+        addTown: (state, action: PayloadAction<TownType>) => {
+            if(state.towns) {
+                state.towns.push(action.payload)
+            }
+            else {
+                state.towns = [action.payload]
+            }
+            state.shouldAddTown = !state.shouldAddTown
+        },
         shouldAddFactoryChange: (state) => {
             state.shouldAddFactory = !state.shouldAddFactory
         },
@@ -56,6 +72,8 @@ export const gameSlice = createSlice({
 })
 
 export const {
+    shouldAddTownChange,
+    addTown,
     shouldAddFactoryChange,
     addFactory,
     shouldAddUnitChange,

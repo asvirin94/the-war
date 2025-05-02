@@ -1,60 +1,36 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // import { useParams } from 'react-router-dom'
 import { nanoid } from 'nanoid';
 
-import { addFactory, addUnit, changeUnit } from 'src/store/game-process/game-process.slice'
+import { addFactory, addTown, addUnit, changeUnit } from 'src/store/game-process/game-process.slice'
 import {
     getFactories,
     getShouldAddFactory,
+    getShouldAddTown,
     getShouldAddUnit,
+    getTowns,
     getUnits
 } from 'src/store/game-process/game-process.selectors'
 
-import { getPlayer } from 'src/lib/utils.ts'
+import { clampOffset, generateHexMetrics, generateHexPoints, getHexAt, getPlayer } from 'src/lib/utils'
 import { useAppDispatch, useAppSelector } from 'src/lib/hooks'
+import { CONFIG } from 'src/lib/consts'
+import { HexCoordsType, OffsetType } from 'src/lib/types'
 
 import { Button } from 'src/ui/components/button.tsx'
 
+import Town from 'src/ui/modules/GameScreen/components/Town'
 import UnitTank from 'src/ui/modules/GameScreen/components/UnitTank'
 import Factory from 'src/ui/modules/GameScreen/components/Factory'
 
 import { AREAS } from './data';
 
-type Offset = {
-    x: number;
-    y: number;
-};
-
-type HexCoords = {
-    row: number;
-    col: number;
-};
-
-type HexMetrics = {
-    hexSize: number;
-    hexWidth: number;
-    hexHeight: number;
-    vertDist: number;
-    horizDist: number;
-};
-
-const HEX_SIZE = 30;
-const ROWS = 40;
-const COLS = 50;
-const SCALES = [1, 1.5, 2];
-
-const generateHexMetrics = (scale: number): HexMetrics => ({
-    hexSize: HEX_SIZE * scale,
-    hexWidth: Math.sqrt(3) * HEX_SIZE * scale,
-    hexHeight: 2 * HEX_SIZE * scale,
-    vertDist: 1.5 * HEX_SIZE * scale,
-    horizDist: Math.sqrt(3) * HEX_SIZE * scale,
-});
-
-const HexMap = () => {
+export default function HexMap() {
     const user = getPlayer();
     const dispatch = useAppDispatch();
 
+    const shouldAddTown = useAppSelector(getShouldAddTown)
+    const myTowns = useAppSelector(getTowns)
     const shouldAddFactory = useAppSelector(getShouldAddFactory)
     const myFactories = useAppSelector(getFactories)
     const shouldAddUnit = useAppSelector(getShouldAddUnit)
@@ -67,128 +43,132 @@ const HexMap = () => {
     const [maps, setMaps] = useState<Map<number, HTMLCanvasElement>>(new Map());
     const [scaleIndex, setScaleIndex] = useState<number>(0);
     const [isDragging, setIsDragging] = useState<boolean>(false);
-    const [dragStart, setDragStart] = useState<Offset | null>(null);
+    const [dragStart, setDragStart] = useState<OffsetType | null>(null);
 
+    const [activeTownId, setActiveTownId] = useState<string | null>(null);
     const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
     const [activeFactoryId, setActiveFactoryId] = useState<string | null>(null);
 
-    const [activeHex, setActiveHex] = useState<HexCoords | null>(null);
+    const [activeHex, setActiveHex] = useState<HexCoordsType | null>(null);
 
     // const {lobbyId} = useParams<{ lobbyId: string }>();
 
-    const metrics: HexMetrics = useMemo(() => generateHexMetrics(SCALES[scaleIndex]), [scaleIndex]);
+    const metrics = useMemo(() => generateHexMetrics(CONFIG.HEX.SCALES[scaleIndex]), [scaleIndex]);
 
-    const [offset, setOffset] = useState<Offset>({x: 1.5 * metrics.hexHeight, y: 1.5 * metrics.hexHeight});
+    const [offset, setOffset] = useState<OffsetType>({x: 1.5 * metrics.hexHeight, y: 1.5 * metrics.hexHeight});
 
     const areaColorMap = useMemo(() => {
         const map = new Map<string, string>();
-        for (const [, area] of Object.entries(AREAS)) {
-            for (const hex of area.hexes) {
-                map.set(hex, area.color);
-            }
-        }
+        Object.values(AREAS).forEach(area => {
+            area.hexes.forEach(hex => map.set(hex, area.color));
+        });
         return map;
     }, []);
 
-    const drawHex = (
+    const drawHex = useCallback((
         ctx: CanvasRenderingContext2D,
+        isActive: boolean,
         x: number,
         y: number,
         hexSize: number,
-        isActive: boolean,
-        color?: string
+        color?: string,
     ) => {
+        const points = generateHexPoints(x, y, hexSize);
+
         ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 180) * (60 * i - 30);
-            const px = x + hexSize * Math.cos(angle);
-            const py = y + hexSize * Math.sin(angle);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-        }
+        points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
         ctx.closePath();
-
-        if (color) {
-            ctx.fillStyle = color;
-            ctx.fill();
-        } else {
-            ctx.fillStyle = '#07517a';
-            ctx.fill();
-        }
-
+        ctx.fillStyle = color || CONFIG.HEX.COLORS.BASE;
+        ctx.fill();
         if (isActive) {
-            ctx.strokeStyle = "#0ff";
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = CONFIG.HEX.COLORS.ACTIVE;
         } else {
-            ctx.strokeStyle = "#ccc";
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = CONFIG.HEX.COLORS.BORDER;
         }
+        ctx.lineWidth = 1;
         ctx.stroke();
-    };
+    }, []);
+
+    const drawClusterBorders = useCallback((
+        ctx: CanvasRenderingContext2D,
+        row: number,
+        col: number,
+        x: number,
+        y: number,
+        hexSize: number
+    ) => {
+        const neighbors = row % 2 === 0
+            ? [
+                `${row}/${col + 1}`, `${row + 1}/${col}`,
+                `${row + 1}/${col - 1}`, `${row}/${col - 1}`,
+                `${row - 1}/${col - 1}`, `${row - 1}/${col}`
+            ]
+            : [
+                `${row}/${col + 1}`, `${row + 1}/${col + 1}`,
+                `${row + 1}/${col}`, `${row}/${col - 1}`,
+                `${row - 1}/${col}`, `${row - 1}/${col + 1}`
+            ];
+
+        const points = generateHexPoints(x, y, hexSize);
+        neighbors.forEach((neighbor, i) => {
+            if (user?.color && !CONFIG.HEX.CLUSTER.includes(neighbor)) {
+                ctx.beginPath();
+                ctx.moveTo(points[i].x, points[i].y);
+                ctx.lineTo(points[(i + 1) % 6].x, points[(i + 1) % 6].y);
+                ctx.strokeStyle = user?.color;
+                ctx.lineWidth = 10;
+                ctx.stroke();
+            }
+        });
+    }, []);
 
     const renderMap = useCallback((scale: number) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        if (!ctx || !canvas) return canvas;
+        if (!ctx) return canvas;
 
         const {hexWidth, horizDist, vertDist, hexSize} = generateHexMetrics(scale);
         const marginX = hexWidth / 2;
         const marginY = hexSize;
 
-        canvas.width = (COLS - 1) * horizDist + hexWidth + (horizDist / 2);
-        canvas.height = (ROWS - 1) * vertDist + 2 * hexSize;
+        canvas.width = (CONFIG.HEX.COLS - 1) * horizDist + hexWidth + (horizDist / 2);
+        canvas.height = (CONFIG.HEX.ROWS - 1) * vertDist + 2 * hexSize;
 
-        for (let row = 0; row < ROWS; row++) {
-            for (let col = 0; col < COLS; col++) {
+        for (let row = 0; row < CONFIG.HEX.ROWS; row++) {
+            for (let col = 0; col < CONFIG.HEX.COLS; col++) {
+                const isActive = row === activeHex?.row && col === activeHex.col
                 const x = marginX + col * horizDist + (row % 2 === 1 ? horizDist / 2 : 0);
                 const y = marginY + row * vertDist;
-
-                const areaCode = row.toString() + '/' + col.toString();
-                const color = areaColorMap.get(areaCode);
-
-                drawHex(ctx, x, y, hexSize, false, color);
+                drawHex(ctx, isActive, x, y, hexSize, areaColorMap.get(`${row}/${col}`));
             }
         }
+
+        CONFIG.HEX.CLUSTER.forEach(hex => {
+            const [row, col] = hex.split('/').map(Number);
+            const x = marginX + col * horizDist + (row % 2 === 1 ? horizDist / 2 : 0);
+            const y = marginY + row * vertDist;
+            drawClusterBorders(ctx, row, col, x, y, hexSize);
+        });
 
         return canvas;
-    }, [areaColorMap]);
+    }, [areaColorMap, drawHex, drawClusterBorders]);
 
-    const getHexAt = (mouseX: number, mouseY: number): HexCoords | null => {
-        const {hexSize, horizDist, vertDist, hexWidth} = metrics;
-        const marginX = hexWidth / 2;
-        const marginY = hexSize;
+    const handleTownClick = (id: string) => {
+        const town = myTowns?.find(t => t.id === id);
+        if (!town) return;
 
-        const bgMouseX = mouseX - offset.x;
-        const bgMouseY = mouseY - offset.y;
-
-        const approxRow = Math.floor((bgMouseY - marginY) / vertDist);
-        const approxCol = Math.floor((bgMouseX - marginX - (approxRow % 2 ? horizDist / 2 : 0)) / horizDist);
-
-        for (let dRow = -1; dRow <= 1; dRow++) {
-            for (let dCol = -1; dCol <= 1; dCol++) {
-                const row = approxRow + dRow;
-                const col = approxCol + dCol;
-
-                if (row < 0 || col < 0 || row >= ROWS || col >= COLS) continue;
-
-                const centerX = marginX + col * horizDist + (row % 2 ? horizDist / 2 : 0);
-                const centerY = marginY + row * vertDist;
-
-                const dx = bgMouseX - centerX;
-                const dy = bgMouseY - centerY;
-                if (Math.sqrt(dx * dx + dy * dy) < hexSize * 1.1) {
-                    return {row, col};
-                }
-            }
-        }
-        return null;
-    };
+        setActiveTownId(id)
+        setActiveUnitId(null);
+        setActiveHex(null);
+        setActiveFactoryId(null)
+    }
 
     const handleUnitClick = (id: string) => {
         const unit = myUnits?.find(u => u.id === id);
         if (!unit) return;
 
         setActiveUnitId(id);
+        setActiveTownId(null)
         setActiveHex(null);
         setActiveFactoryId(null)
     };
@@ -203,11 +183,11 @@ const HexMap = () => {
 
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        const hex = getHexAt(x, y);
+        const hex = getHexAt(x, y, metrics, offset);
 
         if (hex && myUnits) {
             const unit = myUnits.find((u) => u.id === activeUnitId)
-            if(unit) {
+            if (unit) {
                 dispatch(changeUnit({...unit, x: hex.row, y: hex.col}))
             }
         }
@@ -218,6 +198,7 @@ const HexMap = () => {
         if (!factory) return;
 
         setActiveFactoryId(id);
+        setActiveTownId(null)
         setActiveUnitId(null);
         setActiveHex(null);
     }
@@ -231,11 +212,11 @@ const HexMap = () => {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
-        const hex = getHexAt(x, y);
+        const hex = getHexAt(x, y, metrics, offset);
 
-        if(hex) {
-            if(user) {
-                if(shouldAddFactory) {
+        if (hex) {
+            if (user) {
+                if (shouldAddFactory) {
                     dispatch(addFactory({
                         id: nanoid(),
                         ownerId: user.id,
@@ -246,8 +227,19 @@ const HexMap = () => {
                     return
                 }
 
-                if(shouldAddUnit) {
+                if (shouldAddUnit) {
                     dispatch(addUnit({
+                        id: nanoid(),
+                        ownerId: user.id,
+                        x: hex.row,
+                        y: hex.col,
+                    }))
+
+                    return
+                }
+
+                if (shouldAddTown) {
+                    dispatch(addTown({
                         id: nanoid(),
                         ownerId: user.id,
                         x: hex.row,
@@ -259,10 +251,40 @@ const HexMap = () => {
             }
 
             setActiveHex(hex);
+            setActiveTownId(null)
             setActiveUnitId(null);
             setActiveFactoryId(null)
         }
     }
+
+    const renderTowns = useCallback(() => {
+        const {horizDist, vertDist, hexSize, hexWidth} = metrics;
+        if (!myTowns) return null;
+
+        return myTowns.map((unit) => {
+
+            const marginX = hexWidth / 2;
+            const marginY = hexSize;
+
+            const centerX = marginX + unit.y * horizDist + (unit.x % 2 ? horizDist / 2 : 0);
+            const centerY = marginY + unit.x * vertDist;
+
+            const screenX = centerX + offset.x;
+            const screenY = centerY + offset.y;
+
+            return (
+                <Town
+                    isActive={activeTownId === unit.id}
+                    key={unit.id}
+                    scale={0.8 * CONFIG.HEX.SCALES[scaleIndex]}
+                    x={screenX}
+                    y={screenY}
+                    size={40}
+                    onClick={() => handleTownClick(unit.id)}
+                />
+            );
+        });
+    }, [activeTownId, offset, metrics, myTowns])
 
     const renderUnits = useCallback(() => {
         const {horizDist, vertDist, hexSize, hexWidth} = metrics;
@@ -283,7 +305,7 @@ const HexMap = () => {
                 <UnitTank
                     isActive={activeUnitId === unit.id}
                     key={unit.id}
-                    scale={0.8 * SCALES[scaleIndex]}
+                    scale={0.8 * CONFIG.HEX.SCALES[scaleIndex]}
                     x={screenX}
                     y={screenY}
                     size={40}
@@ -312,7 +334,7 @@ const HexMap = () => {
                 <Factory
                     isActive={activeFactoryId === factory.id}
                     key={factory.id}
-                    scale={0.8 * SCALES[scaleIndex]}
+                    scale={0.8 * CONFIG.HEX.SCALES[scaleIndex]}
                     x={screenX}
                     y={screenY}
                     size={40}
@@ -325,7 +347,7 @@ const HexMap = () => {
     const draw = useCallback(() => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
-        const backgroundCanvas = maps.get(SCALES[scaleIndex]);
+        const backgroundCanvas = maps.get(CONFIG.HEX.SCALES[scaleIndex]);
         if (!canvas || !ctx || !backgroundCanvas) return;
 
         canvas.width = backgroundCanvas.width;
@@ -344,25 +366,9 @@ const HexMap = () => {
             const y = centerY + offset.y;
             const areaCode = row.toString() + '/' + col.toString();
             const color = areaColorMap.get(areaCode);
-            drawHex(ctx, x, y, hexSize, true, color);
+            drawHex(ctx, true, x, y, hexSize, color);
         }
     }, [metrics, offset, activeHex, maps, scaleIndex]);
-
-    const clampOffset = (x: number, y: number) => {
-        if (!containerRef.current) return {x, y};
-
-        const contW = containerRef.current.clientWidth;
-        const contH = containerRef.current.clientHeight;
-        const canvasW = COLS * metrics.horizDist;
-        const canvasH = ROWS * metrics.vertDist;
-
-        const maxOffsetX = 1.5 * metrics.hexHeight;
-        const minOffsetX = -canvasW + contW - 1.5 * metrics.hexHeight;
-        const maxOffsetY = 1.5 * metrics.hexHeight;
-        const minOffsetY = -canvasH + contH - 1.5 * metrics.hexHeight;
-
-        return {x: Math.min(maxOffsetX, Math.max(minOffsetX, x)), y: Math.min(maxOffsetY, Math.max(minOffsetY, y))};
-    };
 
     const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
         const rect = canvasRef.current?.getBoundingClientRect();
@@ -378,7 +384,7 @@ const HexMap = () => {
             setOffset(prev => {
                 const rawX = prev.x + dx;
                 const rawY = prev.y + dy;
-                return clampOffset(rawX, rawY);
+                return clampOffset(containerRef, rawX, rawY, metrics);
             });
             setDragStart({x, y});
             setIsDragging(true);
@@ -409,7 +415,7 @@ const HexMap = () => {
         const mouseY = e.clientY - rect.top;
 
         setScaleIndex(prevIndex => {
-            const newIndex = e.deltaY < 0 && prevIndex < SCALES.length - 1
+            const newIndex = e.deltaY < 0 && prevIndex < CONFIG.HEX.SCALES.length - 1
                 ? prevIndex + 1
                 : e.deltaY > 0 && prevIndex > 0
                     ? prevIndex - 1
@@ -419,11 +425,11 @@ const HexMap = () => {
                 const mapX = mouseX - offset.x;
                 const mapY = mouseY - offset.y;
 
-                const scaleFactor = SCALES[newIndex] / SCALES[prevIndex];
+                const scaleFactor = CONFIG.HEX.SCALES[newIndex] / CONFIG.HEX.SCALES[prevIndex];
                 const newOffsetX = mouseX - mapX * scaleFactor;
                 const newOffsetY = mouseY - mapY * scaleFactor;
 
-                setOffset(clampOffset(newOffsetX, newOffsetY));
+                setOffset(clampOffset(containerRef, newOffsetX, newOffsetY, metrics));
             }
 
             return newIndex;
@@ -438,7 +444,7 @@ const HexMap = () => {
 
     useEffect(() => {
         const newMap = new Map<number, HTMLCanvasElement>();
-        for (const scale of SCALES) {
+        for (const scale of CONFIG.HEX.SCALES) {
             const canvas = renderMap(scale);
             newMap.set(scale, canvas);
         }
@@ -466,10 +472,9 @@ const HexMap = () => {
                 onMouseMove={handleMouseMove}
                 onWheel={handleWheel}
             />
-            {myUnits?.length && myUnits.length > 0 && renderUnits()}
             {myFactories?.length && myFactories.length > 0 && renderFactories()}
+            {myUnits?.length && myUnits.length > 0 && renderUnits()}
+            {myTowns?.length && myTowns.length > 0 && renderTowns()}
         </div>
     );
 };
-
-export default HexMap;
