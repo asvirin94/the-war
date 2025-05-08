@@ -1,40 +1,40 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-// import { useParams } from 'react-router-dom'
-import { nanoid } from 'nanoid';
+import { useParams } from 'react-router-dom'
 
-import { addFactory, addTown, addUnit, changeUnit } from 'src/store/game-process/game-process.slice'
+import { shouldAddTownChange } from 'src/store/app-process/app-process.slice'
+
 import {
-    getFactories,
-    getShouldAddFactory,
     getShouldAddTown,
-    getShouldAddUnit,
-    getTowns,
-    getUnits
-} from 'src/store/game-process/game-process.selectors'
+} from 'src/store/app-process/app-process.selectors'
 
-import { clampOffset, generateHexMetrics, generateHexPoints, getHexAt, getPlayer } from 'src/lib/utils'
+
+import {
+    clampOffset,
+    generateHexMetrics,
+    generateHexPoints,
+    getHexAt,
+    getUser,
+} from 'src/lib/utils'
 import { useAppDispatch, useAppSelector } from 'src/lib/hooks'
-import { CONFIG } from 'src/lib/consts'
-import { HexCoordsType, OffsetType } from 'src/lib/types'
+import { API_URL, CONFIG } from 'src/lib/consts'
+import { HexCoordsType, LobbyType, OffsetType, PlayerType } from 'src/lib/types'
 
-import { Button } from 'src/ui/components/button.tsx'
+import { Button } from 'src/ui/components/button'
 
-import Town from 'src/ui/modules/GameScreen/components/Town'
-import UnitTank from 'src/ui/modules/GameScreen/components/UnitTank'
-import Factory from 'src/ui/modules/GameScreen/components/Factory'
+import Town from 'src/ui/modules/GameScreen/components/MapEntities/Town'
 
 import { AREAS } from './data';
 
-export default function HexMap() {
-    const user = getPlayer();
+export default function HexMap({socket, player, enemies}: { socket: WebSocket, player: PlayerType, enemies: PlayerType[] }) {
+    const user = getUser();
     const dispatch = useAppDispatch();
 
+    const [isLoading, setIsLoading] = useState(true)
+    const [myState, setMyState] = useState<PlayerType | null>(null)
+    const [enemiesState, setEnemiesState] = useState<PlayerType[]>([])
     const shouldAddTown = useAppSelector(getShouldAddTown)
-    const myTowns = useAppSelector(getTowns)
-    const shouldAddFactory = useAppSelector(getShouldAddFactory)
-    const myFactories = useAppSelector(getFactories)
-    const shouldAddUnit = useAppSelector(getShouldAddUnit)
-    const myUnits = useAppSelector(getUnits)
+
+    const {lobbyId} = useParams<{ lobbyId: string }>();
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -46,12 +46,17 @@ export default function HexMap() {
     const [dragStart, setDragStart] = useState<OffsetType | null>(null);
 
     const [activeTownId, setActiveTownId] = useState<string | null>(null);
-    const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
-    const [activeFactoryId, setActiveFactoryId] = useState<string | null>(null);
+    const [waterImage, setWaterImage] = useState<HTMLImageElement | null>(null);
+
+    useEffect(() => {
+        const img = new Image();
+        img.src = './water.jpg';
+        img.onload = () => {
+            setWaterImage(img);
+        };
+    }, []);
 
     const [activeHex, setActiveHex] = useState<HexCoordsType | null>(null);
-
-    // const {lobbyId} = useParams<{ lobbyId: string }>();
 
     const metrics = useMemo(() => generateHexMetrics(CONFIG.HEX.SCALES[scaleIndex]), [scaleIndex]);
 
@@ -72,14 +77,20 @@ export default function HexMap() {
         y: number,
         hexSize: number,
         color?: string,
+        pattern?: CanvasPattern
     ) => {
         const points = generateHexPoints(x, y, hexSize);
-
         ctx.beginPath();
         points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
         ctx.closePath();
-        ctx.fillStyle = color || CONFIG.HEX.COLORS.BASE;
+
+        if (pattern) {
+            ctx.fillStyle = pattern;
+        } else {
+            ctx.fillStyle = color || CONFIG.HEX.COLORS.BASE;
+        }
         ctx.fill();
+
         if (isActive) {
             ctx.strokeStyle = CONFIG.HEX.COLORS.ACTIVE;
         } else {
@@ -111,11 +122,11 @@ export default function HexMap() {
 
         const points = generateHexPoints(x, y, hexSize);
         neighbors.forEach((neighbor, i) => {
-            if (user?.color && !CONFIG.HEX.CLUSTER.includes(neighbor)) {
+            if (!CONFIG.HEX.CLUSTER.includes(neighbor)) {
                 ctx.beginPath();
                 ctx.moveTo(points[i].x, points[i].y);
                 ctx.lineTo(points[(i + 1) % 6].x, points[(i + 1) % 6].y);
-                ctx.strokeStyle = user?.color;
+                ctx.strokeStyle = 'red';
                 ctx.lineWidth = 10;
                 ctx.stroke();
             }
@@ -134,12 +145,25 @@ export default function HexMap() {
         canvas.width = (CONFIG.HEX.COLS - 1) * horizDist + hexWidth + (horizDist / 2);
         canvas.height = (CONFIG.HEX.ROWS - 1) * vertDist + 2 * hexSize;
 
+        let waterPattern: CanvasPattern | null = null;
+        if(waterImage) {
+            waterPattern = ctx.createPattern(waterImage, 'repeat');
+        }
+
         for (let row = 0; row < CONFIG.HEX.ROWS; row++) {
             for (let col = 0; col < CONFIG.HEX.COLS; col++) {
                 const isActive = row === activeHex?.row && col === activeHex.col
                 const x = marginX + col * horizDist + (row % 2 === 1 ? horizDist / 2 : 0);
                 const y = marginY + row * vertDist;
-                drawHex(ctx, isActive, x, y, hexSize, areaColorMap.get(`${row}/${col}`));
+                const color = areaColorMap.get(`${row}/${col}`);
+
+                if (color) {
+                    drawHex(ctx, isActive, x, y, hexSize, color);
+                } else if (waterPattern) {
+                    drawHex(ctx, isActive, x, y, hexSize, undefined, waterPattern);
+                } else {
+                    drawHex(ctx, isActive, x, y, hexSize, CONFIG.HEX.COLORS.BASE);
+                }
             }
         }
 
@@ -151,57 +175,7 @@ export default function HexMap() {
         });
 
         return canvas;
-    }, [areaColorMap, drawHex, drawClusterBorders]);
-
-    const handleTownClick = (id: string) => {
-        const town = myTowns?.find(t => t.id === id);
-        if (!town) return;
-
-        setActiveTownId(id)
-        setActiveUnitId(null);
-        setActiveHex(null);
-        setActiveFactoryId(null)
-    }
-
-    const handleUnitClick = (id: string) => {
-        const unit = myUnits?.find(u => u.id === id);
-        if (!unit) return;
-
-        setActiveUnitId(id);
-        setActiveTownId(null)
-        setActiveHex(null);
-        setActiveFactoryId(null)
-    };
-
-    const handleUnitRightClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        e.preventDefault();
-
-        if (!activeUnitId) return;
-
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const hex = getHexAt(x, y, metrics, offset);
-
-        if (hex && myUnits) {
-            const unit = myUnits.find((u) => u.id === activeUnitId)
-            if (unit) {
-                dispatch(changeUnit({...unit, x: hex.row, y: hex.col}))
-            }
-        }
-    };
-
-    const handleFactoryClick = (id: string) => {
-        const factory = myFactories?.find(f => f.id === id);
-        if (!factory) return;
-
-        setActiveFactoryId(id);
-        setActiveTownId(null)
-        setActiveUnitId(null);
-        setActiveHex(null);
-    }
+    }, [areaColorMap, drawHex, drawClusterBorders, waterImage]);
 
     const handleHexClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
         if (isDragging) return;
@@ -216,35 +190,18 @@ export default function HexMap() {
 
         if (hex) {
             if (user) {
-                if (shouldAddFactory) {
-                    dispatch(addFactory({
-                        id: nanoid(),
-                        ownerId: user.id,
-                        x: hex?.row,
-                        y: hex?.col,
-                    }))
-
-                    return
-                }
-
-                if (shouldAddUnit) {
-                    dispatch(addUnit({
-                        id: nanoid(),
-                        ownerId: user.id,
-                        x: hex.row,
-                        y: hex.col,
-                    }))
-
-                    return
-                }
-
                 if (shouldAddTown) {
-                    dispatch(addTown({
-                        id: nanoid(),
-                        ownerId: user.id,
-                        x: hex.row,
-                        y: hex.col,
-                    }))
+                    fetch(`http://${API_URL}/game/town?lobby_id=${lobbyId}&player_id=${user.id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            x: hex.row,
+                            y: hex.col,
+                        }),
+                    });
+                    dispatch(shouldAddTownChange())
 
                     return
                 }
@@ -252,97 +209,73 @@ export default function HexMap() {
 
             setActiveHex(hex);
             setActiveTownId(null)
-            setActiveUnitId(null);
-            setActiveFactoryId(null)
         }
     }
 
     const renderTowns = useCallback(() => {
         const {horizDist, vertDist, hexSize, hexWidth} = metrics;
-        if (!myTowns) return null;
+        if (!myState) return null;
+        const { towns } = myState
+        if (!towns) return null;
 
-        return myTowns.map((unit) => {
-
+        return towns.map((town) => {
             const marginX = hexWidth / 2;
             const marginY = hexSize;
 
-            const centerX = marginX + unit.y * horizDist + (unit.x % 2 ? horizDist / 2 : 0);
-            const centerY = marginY + unit.x * vertDist;
+            const centerX = marginX + town.y * horizDist + (town.x % 2 ? horizDist / 2 : 0);
+            const centerY = marginY + town.x * vertDist;
 
             const screenX = centerX + offset.x;
             const screenY = centerY + offset.y;
 
             return (
                 <Town
-                    isActive={activeTownId === unit.id}
-                    key={unit.id}
+                    isActive={activeTownId === town.id}
+                    color={myState.color || 'red'}
+                    key={town.id}
                     scale={0.8 * CONFIG.HEX.SCALES[scaleIndex]}
                     x={screenX}
                     y={screenY}
                     size={40}
-                    onClick={() => handleTownClick(unit.id)}
+                    // onClick={() => handleTownClick(unit.id)}
                 />
             );
         });
-    }, [activeTownId, offset, metrics, myTowns])
+    }, [activeTownId, offset, metrics, myState])
 
-    const renderUnits = useCallback(() => {
-        const {horizDist, vertDist, hexSize, hexWidth} = metrics;
-        if (!myUnits) return null;
+    const renderEnemyTowns = useCallback(() => {
+        const { horizDist, vertDist, hexSize, hexWidth } = metrics;
+        if (!enemiesState?.length) return null;
 
-        return myUnits.map((unit) => {
+        return enemiesState.flatMap((enemy) => {
+            const { towns, color: enemyColor } = enemy;
+            if (!towns) return [];
 
-            const marginX = hexWidth / 2;
-            const marginY = hexSize;
+            return towns.map((town) => {
+                const marginX = hexWidth / 2;
+                const marginY = hexSize;
 
-            const centerX = marginX + unit.y * horizDist + (unit.x % 2 ? horizDist / 2 : 0);
-            const centerY = marginY + unit.x * vertDist;
+                const centerX = marginX + town.y * horizDist + (town.x % 2 ? horizDist / 2 : 0);
+                const centerY = marginY + town.x * vertDist;
 
-            const screenX = centerX + offset.x;
-            const screenY = centerY + offset.y;
+                const screenX = centerX + offset.x;
+                const screenY = centerY + offset.y;
 
-            return (
-                <UnitTank
-                    isActive={activeUnitId === unit.id}
-                    key={unit.id}
-                    scale={0.8 * CONFIG.HEX.SCALES[scaleIndex]}
-                    x={screenX}
-                    y={screenY}
-                    size={40}
-                    onClick={() => handleUnitClick(unit.id)}
-                />
-            );
+                return (
+                    <Town
+                        key={`${town.id}`}
+                        isActive={activeTownId === town.id}
+                        color={enemyColor as string}
+                        scale={0.8 * CONFIG.HEX.SCALES[scaleIndex]}
+                        x={screenX}
+                        y={screenY}
+                        size={40}
+                        // onClick={() => handleTownClick(unit.id)}
+                    />
+                );
+            });
         });
-    }, [activeUnitId, offset, metrics, myUnits])
-
-    const renderFactories = useCallback(() => {
-        const {horizDist, vertDist, hexSize, hexWidth} = metrics;
-        if (!myFactories) return null;
-
-        return myFactories.map((factory) => {
-
-            const marginX = hexWidth / 2;
-            const marginY = hexSize;
-
-            const centerX = marginX + factory.y * horizDist + (factory.x % 2 ? horizDist / 2 : 0);
-            const centerY = marginY + factory.x * vertDist;
-
-            const screenX = centerX + offset.x;
-            const screenY = centerY + offset.y;
-
-            return (
-                <Factory
-                    isActive={activeFactoryId === factory.id}
-                    key={factory.id}
-                    scale={0.8 * CONFIG.HEX.SCALES[scaleIndex]}
-                    x={screenX}
-                    y={screenY}
-                    size={40}
-                    onClick={() => handleFactoryClick(factory.id)}
-                />
-            );
-        });
-    }, [activeFactoryId, offset, metrics, myFactories])
+    }, [activeTownId, offset, metrics, enemiesState, scaleIndex]);
 
     const draw = useCallback(() => {
         const canvas = canvasRef.current;
@@ -437,28 +370,50 @@ export default function HexMap() {
     };
 
     useEffect(() => {
+        if(socket) {
+            socket.onmessage = (event) => {
+                const data: LobbyType = JSON.parse(event.data);
+                const myData = data.players.find((p) => p.id === user?.id);
+                const enemiesData = data.players.filter((p) => p.id !== user?.id);
+                if(myData) {
+                    setMyState(myData);
+                }
+                setEnemiesState(enemiesData);
+            };
+        }
+    }, [socket]);
+
+    useEffect(() => {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(draw);
         return () => cancelAnimationFrame(rafRef.current);
     }, [draw]);
 
     useEffect(() => {
-        const newMap = new Map<number, HTMLCanvasElement>();
-        for (const scale of CONFIG.HEX.SCALES) {
-            const canvas = renderMap(scale);
-            newMap.set(scale, canvas);
+        if(waterImage) {
+            const newMap = new Map<number, HTMLCanvasElement>();
+            for (const scale of CONFIG.HEX.SCALES) {
+                const canvas = renderMap(scale);
+                newMap.set(scale, canvas);
+            }
+            setMaps(newMap);
+            setIsLoading(false)
         }
-        setMaps(newMap);
-    }, [renderMap]);
+    }, [renderMap, waterImage]);
 
     return (
         <div
             ref={containerRef}
-            className="relative max-w-full max-h-full overflow-hidden border border-2 border-[#000000] bg-[#656464] active:cursor-grabbing touch-none"
+            className="relative max-w-full max-h-full overflow-hidden border-2 border-[#000000] bg-[#656464] active:cursor-grabbing touch-none"
         >
             {activeHex && (
                 <div className='absolute bottom-1 left-1 w-60 h-120 flex flex-col p-5 bg-white'>
-                    <Button className='bg-red-500 cursor-pointer' onClick={() => setActiveHex(null)}>закрыть</Button>
+                    <Button
+                        className='bg-red-500 cursor-pointer'
+                        onClick={() => setActiveHex(null)}
+                    >
+                        закрыть
+                    </Button>
                     <p>{`${activeHex.row}/${activeHex.col}`}</p>
                 </div>
             )}
@@ -467,14 +422,12 @@ export default function HexMap() {
                 className="block"
                 onMouseDown={handleMouseDown}
                 onClick={handleHexClick}
-                onContextMenu={handleUnitRightClick}
                 onMouseUp={handleMouseUp}
                 onMouseMove={handleMouseMove}
                 onWheel={handleWheel}
             />
-            {myFactories?.length && myFactories.length > 0 && renderFactories()}
-            {myUnits?.length && myUnits.length > 0 && renderUnits()}
-            {myTowns?.length && myTowns.length > 0 && renderTowns()}
+            {renderTowns()}
+            {renderEnemyTowns()}
         </div>
     );
 };

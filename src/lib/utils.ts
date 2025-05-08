@@ -3,26 +3,25 @@ import React from 'react'
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
-import { HexCoordsType, HexMetricsType, OffsetType, PlayerType } from 'src/lib/types'
-import { CONFIG, LOCAL_STORAGE_KEY } from 'src/lib/consts'
-
+import { HexCoordsType, HexMetricsType, OffsetType, UserType } from 'src/lib/types'
+import { API_URL, CONFIG, LOCAL_STORAGE_KEY } from 'src/lib/consts'
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
 }
 
-export const savePlayer = (player: PlayerType) => {
+export const saveUser = (player: UserType) => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(player));
 }
 
-export const getPlayer = (): PlayerType | null => {
+export const getUser = (): UserType | null => {
     const data = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!data) return null;
 
-    return JSON.parse(data) as PlayerType;
+    return JSON.parse(data) as UserType;
 }
 
-export const clearPlayer = () => {
+export const clearUser = () => {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
 }
 
@@ -43,6 +42,32 @@ export const generateHexPoints = (x: number, y: number, hexSize: number) => {
         };
     });
 }
+
+export const handleSelectColor = async (color: string, lobbyId: string, user: UserType) => {
+    if (!user) return;
+
+    await fetch(`http://${API_URL}/lobby/set_color?lobby_id=${lobbyId}&player_id=${user.id}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({color}),
+    });
+};
+
+export const handleLeaveLobby = async (lobbyId: string, user: UserType) => {
+    if (user) {
+        await fetch(`http://${API_URL}/lobby/leave?lobby_id=${lobbyId}&player_id=${user.id}`, {
+            method: "POST",
+            keepalive: true,
+        });
+
+    }
+};
+
+export const handleStartGame = async (lobbyId: string) => {
+    if (!lobbyId) return;
+
+    await fetch(`http://${API_URL}/lobby/start?lobby_id=${lobbyId}`, {method: "POST"});
+};
 
 export const getHexAt = (
     mouseX: number,

@@ -1,6 +1,4 @@
-import { getPlayer } from 'src/lib/utils.ts'
-
-type UnitTankPropsType = {
+type FactoryPropsType = {
     isActive: boolean;
     x: number;
     y: number;
@@ -9,14 +7,13 @@ type UnitTankPropsType = {
     onClick: () => void;
 };
 
-export default function UnitTank({ isActive, x, y, size, scale, onClick }: UnitTankPropsType) {
-    const user = getPlayer();
+export default function Factory({isActive, x, y, size, scale, onClick}: FactoryPropsType) {
     const scaledSize = size * scale;
     const isBordered = isActive ? 'border-2 border-black' : ''
 
     return (
         <div
-            className={`absolute flex items-center justify-center rounded-[50%] bg-${user?.color}-500 ${isBordered}`}
+            className={`absolute flex items-center justify-center rounded-[20%] bg-red-500 ${isBordered}`}
             style={{
                 left: x - scaledSize / 2,
                 top: y - scaledSize / 2,
@@ -26,11 +23,10 @@ export default function UnitTank({ isActive, x, y, size, scale, onClick }: UnitT
             onClick={onClick}
         >
             <img
-                src="./tank-icon.png"
+                src="./factory.svg"
                 className="object-contain"
                 style={{
-                    width: '115%',
-                    height: '115%',
+                    width: '75%',
                 }}
             />
         </div>

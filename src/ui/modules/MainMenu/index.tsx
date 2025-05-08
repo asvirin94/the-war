@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { clearPlayer, getPlayer } from 'src/lib/utils.ts'
+import { clearUser, getUser } from 'src/lib/utils.ts'
 import { API_URL } from 'src/lib/consts.ts'
 
 import { Button } from 'src/ui/components/button.tsx'
@@ -16,10 +16,10 @@ export default function MainMenu() {
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
 
-    const [player, setPlayer] = useState<ReturnType<typeof getPlayer> | null>(null);
+    const [user, setUser] = useState<ReturnType<typeof getUser> | null>(null);
 
     const handleLogout = () => {
-        clearPlayer();
+        clearUser();
         window.location.reload();
     };
 
@@ -30,7 +30,7 @@ export default function MainMenu() {
     // }
 
     useEffect(() => {
-        setPlayer(getPlayer());
+        setUser(getUser());
         fetch(`http://${API_URL}/players`, {method: "GET"});
         // getPlayers()
     }, []);
@@ -38,9 +38,9 @@ export default function MainMenu() {
     return (
         <div className="relative w-full h-full">
             <div className="absolute top-[50px] left-[50px] w-[300px] gap-5 border border-black-200 p-5 flex flex-col">
-                {player ? (
+                {user ? (
                     <div className="flex flex-col gap-4">
-                        <div className="text-lg">Привет, {player.name}!</div>
+                        <div className="text-lg">Привет, {user.name}!</div>
                         <Button variant="outline" onClick={handleLogout}>Выйти из аккаунта</Button>
                     </div>
                 ) : (

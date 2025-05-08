@@ -1,8 +1,4 @@
-import { StateType } from 'src/lib/types'
+import { StateType } from 'src/lib/types.ts'
 
-export const getShouldAddTown = (state: StateType) => state['GAME'].shouldAddTown
-export const getTowns = (state: StateType) => state['GAME'].towns
-export const getShouldAddFactory = (state: StateType) => state['GAME'].shouldAddFactory
-export const getFactories = (state: StateType) => state['GAME'].factories
-export const getShouldAddUnit = (state: StateType) => state['GAME'].shouldAddUnit
-export const getUnits = (state: StateType) => state['GAME'].units
+export const getPlayer = (state: StateType) => state['GAME'].player;
+export const getEnemies = (state: StateType) => state['GAME'].enemies;

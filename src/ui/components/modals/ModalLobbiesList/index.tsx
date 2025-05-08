@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { getPlayer} from 'src/lib/utils'
-import { LobbyType, PlayerType } from 'src/lib/types'
+import { getUser} from 'src/lib/utils'
+import { LobbyType, UserType } from 'src/lib/types'
 
 import { Dialog, DialogContent, DialogTitle } from 'src/ui/components/dialog'
 import { Button } from 'src/ui/components/button'
@@ -23,7 +23,7 @@ export default function ModalLobbiesList({open, onOpenChange}: ModalGetLobbiesPr
 
     const navigate = useNavigate();
 
-    const user: PlayerType | null = getPlayer();
+    const user: UserType | null = getUser();
 
     const fetchLobbies = async (): Promise<LobbyType[]> => {
         const response = await fetch(`http://${API_URL}/lobby/list`, {
@@ -51,6 +51,7 @@ export default function ModalLobbiesList({open, onOpenChange}: ModalGetLobbiesPr
                 headers: {'Content-Type': 'application/json'},
             });
 
+            console.log(await response.json())
             if (response.ok) {
                 navigate(`/lobby/${lobbyId}`);
             }
@@ -79,7 +80,7 @@ export default function ModalLobbiesList({open, onOpenChange}: ModalGetLobbiesPr
                                     <span className='w-[120px]'>{lobby.name}</span>
                                     <span>{lobby.players.length}</span>
                                     <Button
-                                        className="text-blue-500 underline"
+                                        className="underline"
                                         onClick={() => {
                                             setSelectedLobby(lobby)
                                         }}
@@ -91,7 +92,7 @@ export default function ModalLobbiesList({open, onOpenChange}: ModalGetLobbiesPr
                         </ul>
                     )
                 )}
-                <Button onClick={fetchLobbies}>Обновить</Button>
+                <Button onClick={getLobbies}>Обновить</Button>
                 {selectedLobby && selectedLobby.password && (
                     <div>
                         <h3>Введите пароль для {selectedLobby.name}</h3>

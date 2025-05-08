@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from 'react-router-dom'
 
-import { getPlayer} from 'src/lib/utils'
-import { LobbyType, PlayerType } from 'src/lib/types'
+import { getUser} from 'src/lib/utils'
+import { LobbyType, UserType } from 'src/lib/types'
 import { API_URL } from 'src/lib/consts'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "src/ui/components/dialog";
@@ -21,10 +21,10 @@ export default function ModalCreateLobby({ open, onOpenChange }: ModalCreateLobb
 
     const navigate = useNavigate();
 
-    const user: PlayerType | null = getPlayer();
+    const user: UserType | null = getUser();
 
     const createLobby = async (lobbyName: string, password: string): Promise<LobbyType> => {
-        const response = await fetch(`${API_URL}/lobby/create`, {
+        const response = await fetch(`http://${API_URL}/lobby/create`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -45,7 +45,7 @@ export default function ModalCreateLobby({ open, onOpenChange }: ModalCreateLobb
             const lobby = await createLobby(lobbyName, password);
             if (lobby.id) {
                 onOpenChange(false);
-                navigate(`/lobby/${lobby.id}`, { state: { isOwner: true } });
+                navigate(`/lobby/${lobby.id}`);
             }
         }
     };

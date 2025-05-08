@@ -1,29 +1,27 @@
-import { getPlayer } from 'src/lib/utils.ts'
-
 type TownPropsType = {
     isActive: boolean;
+    color: string;
     x: number;
     y: number;
     size: number;
     scale: number;
-    onClick: () => void;
+    // onClick: () => void;
 };
 
-export default function Town({isActive, x, y, size, scale, onClick}: TownPropsType) {
-    const user = getPlayer();
+export default function Town({isActive, color, x, y, size, scale}: TownPropsType) {
     const scaledSize = size * scale;
     const isBordered = isActive ? 'border-2 border-black' : ''
 
     return (
         <div
-            className={`absolute flex items-center justify-center rounded-[20%] bg-${user?.color}-500 ${isBordered}`}
+            className={`absolute flex items-center justify-center rounded-[20%] bg-${color}-500 ${isBordered}`}
             style={{
                 left: x - scaledSize / 2,
                 top: y - scaledSize / 2,
                 width: scaledSize,
                 height: scaledSize,
             }}
-            onClick={onClick}
+            // onClick={onClick}
         >
             <img
                 src="./town.svg"

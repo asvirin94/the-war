@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { savePlayer } from "src/lib/utils";
+import { saveUser } from "src/lib/utils";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "src/ui/components/dialog";
 import { Input } from "src/ui/components/input";
@@ -24,7 +24,7 @@ export default function ModalLogin({ open, onOpenChange }: ModalLoginType) {
             body: JSON.stringify({ name, password }),
         });
         const data = await res.json();
-        savePlayer(data);
+        saveUser(data);
         onOpenChange(false);
         window.location.reload();
     };

@@ -3,15 +3,41 @@ import { store } from 'src/store'
 export type StateType = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
-export type PlayerType = {
+export type UserType = {
     id: string;
     name: string;
-    color?: string;
 };
 
-export type LobbyType = {
+export type PlayerType = UserType & {
+    color: string | null;
+    towns: TownType[]
+}
+
+export type TownType = {
     id: string;
+    ownerId: string;
+    x: number;
+    y: number;
+}
+
+export type UnitType = {
+    id: string;
+    ownerId: string;
+    x: number;
+    y: number;
+}
+
+export type FactoryType = {
+    id: string;
+    ownerId: string;
+    x: number;
+    y: number;
+}
+
+export type LobbyType = {
     isStarted: boolean;
+    status?: string;
+    id: string;
     name: string;
     ownerId: string;
     password: string;
@@ -35,24 +61,3 @@ export type HexMetricsType = {
     vertDist: number;
     horizDist: number;
 };
-
-export type TownType = {
-    id: string;
-    ownerId: string;
-    x: number;
-    y: number;
-}
-
-export type UnitType = {
-    id: string;
-    ownerId: string;
-    x: number;
-    y: number;
-}
-
-export type FactoryType = {
-    id: string;
-    ownerId: string;
-    x: number;
-    y: number;
-}
